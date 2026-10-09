@@ -105,6 +105,21 @@ async function readJsonObject(filepath: string): Promise<Record<string, unknown>
   }
 }
 
+async function replaceRuntimeConfigSymlink(filepath: string): Promise<void> {
+  let stat: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    stat = await fs.lstat(filepath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException | null)?.code === "ENOENT") return;
+    throw err;
+  }
+  if (!stat.isSymbolicLink()) return;
+
+  const contents = await fs.readFile(filepath);
+  await fs.unlink(filepath);
+  await fs.writeFile(filepath, contents, { mode: 0o600 });
+}
+
 function buildRuntimeMcpConfig(
   existingMcp: Record<string, unknown>,
   servers: AdapterRuntimeMcpServer[],
@@ -181,6 +196,7 @@ export async function prepareOpenCodeRuntimeConfig(input: {
     }
   }
 
+  await replaceRuntimeConfigSymlink(runtimeConfigPath);
   const existingConfig = await readJsonObject(runtimeConfigPath);
   const notes: string[] = [];
   if (skipPermissions) {
